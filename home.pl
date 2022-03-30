@@ -17,53 +17,47 @@ room(corridor).
 room(living_room).
 room(garage).
 
-object(table, brown, big, 50).
-object(tv, black, big, 30).
-object(jug_of_water, beige, big, 15).
-object(console, white, small, 5).
-object(bed, blue, big, 50).
-object(controller, gray, small, 1).
-object(desk, gray, big, 40).
-object(laptop, silver, small, 3).
-object(lamp, beige, small, 4).
-object(mirror, reflecitve, small, 1).
-object(frame, begie, big, 20).
-object(plant, green, small, 6).
-object(toilet, white, big, 30).
-object(towel, brown, small, 2).
-object(soap, green, small, 1).
-object(sofa, brown, big, 40).
-object(cat_bowl, silver, small, 1).
-object(car, red, big, 1000).
-object(pizza, red, small, 4).
-object(apple, green, small, 2).
-object(soda, black, small, 4).
-object(brocolli, green, small, 1).
-object(fridge, black, big, 60).
+loc_list([apple, soda, water, pizza, fridge], kitchen).
+loc_list([console, bed, controller], my_room).
+loc_list([desk, laptop, lamp], office).
+loc_list([mirror, frame, plant], mothers_room).
+loc_list([toilet, towel, soap], bathroom).
+loc_list([sofa, cat_bowl], living_room).
+loc_list([], corridor).
 
-location(object(table, brown, big, 50), kitchen).
-location(object(tv, black, big, 30), kitchen).
-location(object(jug_of_water, beige, big, 15), kitchen).
-location(object(console, white, small, 5), my_room).
-location(object(bed, blue, big, 50), my_room).
-location(object(controller, gray, small, 1), my_room).
-location(object(desk, gray, big, 40), office).
-location(object(laptop, silver, small, 3), object(desk, gray, big, 40)).
-location(object(lamp, beige, small, 4), office).
-location(object(mirror, reflecitve, small, 1), mothers_room).
-location(object(frame, begie, big, 20), mothers_room).
-location(object(plant, green, small, 6), mothers_room).
-location(object(toilet, white, big, 30), bathroom).
-location(object(towel, brown, small, 2), bathroom).
-location(object(soap, green, small, 1), bathroom).
-location(object(sofa, brown, big, 40), living_room).
-location(object(cat_bowl, silver, small, 1), living_room).
-location(object(car, red, big, 1000), garage).
-location(object(pizza, red, small, 4), kitchen).
-location(object(apple, green, small, 2), kitchen).
-location(object(soda, black, small, 4), kitchen).
-location(object(brocolli, green, small, 1), kitchen).
-location(object(fridge, black, big, 60), kitchen).
+member(H, [H|_]).
+member(X, [_|T]) :- member(X, T).
+
+append([], X, X).
+append([H|T1], X, [H|T2]) :- append(T1, X, T2).
+
+location(X, Y) :- loc_list(List, Y), member(X, List).
+
+add_thing(NewThing, Containter, NewList) :- 
+    loc_list(OldList, Containter),
+    append([NewThing], OldList, NewList).
+
+add_thing2(NewThing, Containter, NewList) :- 
+    loc_list(OldList, Containter),
+    NewList = [NewThing|OldList].
+
+add_thing3(NewThing, Containter, [NewThing|OldList]) :-
+    loc_list(OldList, Containter).
+
+put_thing(Thing, Place) :-
+    retract(loc_list(List, Place)),
+    assert(loc_list([Thing|List], Place)).
+
+break_out([]).
+break_out([H|T]) :- assertz(stuff(H)), break_out(T).
+
+respond([H|T], ) :-
+
+list_things_l() :- 
+
+take_l().
+
+
 
 is_contained_in(T1, T2) :-
     location(object(T1, _, _, _), T2).
@@ -80,6 +74,7 @@ drinkable(object(soda, _, _, _)).
 breakable(object(console, _, _, _)).
 breakable(object(frame, _, _, _)).
 breakable(object(cat_bowl, _, _, _)).
+breakable(object(lamp, _, _, _)).
 
 door(my_room, corridor).
 door(office, corridor).
@@ -115,13 +110,23 @@ connect(X, Y) :- door(Y, X).
 
 % % % % % %  - Inventory -  % % % % % %
 
+inventory :- not(have(_)), write("You have nothing in your inventory").
 inventory :- write("You have in inventory:"), nl, 
     have(object(Thing, _, _, _)), tab(2),
     write(Thing), nl, is_contained_in(In, Thing), 
     tab(2), write(object(In, _, _, _)), nl.
 
+% inventory :- write("You have in inventory:"), nl, 
+%     have(Thing), tab(2),
+%     write(Thing), nl, is_contained_in(In, Thing), 
+%     tab(2), write(In), nl.
+
+
 % % % % % %  - Eat -  % % % % % %
 
+eat(Thing) :- have(object(Thing, _, _, _)),
+    drinkable(object(Thing, _, _, _)),
+    write('You can\'t eat '), write(Thing), fail.
 eat(Thing) :- have(object(Thing, _, _, _)),
     tastes_yucky(object(Thing, _, _, _)),
     write('Gross >m<'), fail.
@@ -142,13 +147,18 @@ drink(Thing) :- have(object(Thing, _, _, _)),
     drinkable(object(Thing, _, _, _)),
     retract(have(object(Thing, _, _, _))), write('Refreshing!'), fail.
 
+
+% % % % % %  - List things -  % % % % % %
+
 list_things(Place) :- 
     is_contained_in(Thing, Place),
     tab(2), write(Thing), nl, fail.
 list_things(_).
 
-% % % % % %  - List things -  % % % % % %
-
+list_things_s(Place) :- not(room(Place)),
+    write(Place), write(' is not a place'), nl, fail.
+list_things_s(Place) :- not(location(object(_, _, _, _), Place)),
+    write('There\'s nothing in '), write(Place), nl, fail.
 list_things_s(Place) :-
     location(object(Thing, Color, Size, Weight), Place),
     write('A '), write(Size), tab(1), write(Color), tab(1),
@@ -170,7 +180,7 @@ look :- here(Place), write(Place), nl,
 
 look_in(Thing) :- location(X, Thing), list_things_s(X).
 
-can_go(Place) :- here(X), connect(X, Place).
+can_go(Place) :- here(X), is_opened(X, Place), connect(X, Place).
 
 move(Place) :- retract(here(_)), assert(here(Place)).
 
@@ -221,6 +231,8 @@ drop(X) :- have(object(X, _, _, _)), breakable(object(X, _, _, _)),
     retract(have(object(X, _, _, _))), write("broken"), nl.
 drop(X) :- put(X), write("dropped"), nl.
 
+% % % % % %  - Turn on/off -  % % % % % 
+
 turn_on :- have(object(lamp, _, _, _)),
     retract(turned_off(object(lamp, _, _, _))),
     assert(turned_on(object(lamp, _, _, _))).
@@ -234,3 +246,7 @@ turn_on(X) :- here(Y), location(X, Y), retract(turned_off(X)), assert(turned_on(
 
 turn_off(X) :- have(X), retract(turned_on(X)), assert(turned_off(X)). 
 turn_off(X) :- here(Y), location(X, Y), retract(turned_on(X)), assert(turned_off(X)).
+
+have(object(lamp, beige, small, 4)).
+
+
