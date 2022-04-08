@@ -7,6 +7,7 @@
 :- dynamic turned_on/1.
 :- dynamic turn_on/1.
 :- dynamic turn_off/1.
+:- dynamic loc_list/2.
 
 room(kitchen).
 room(my_room).
@@ -16,14 +17,42 @@ room(bathroom).
 room(corridor).
 room(living_room).
 room(garage).
+room(kid).
 
-loc_list([apple, soda, water, pizza, fridge], kitchen).
-loc_list([console, bed, controller], my_room).
-loc_list([desk, laptop, lamp], office).
-loc_list([mirror, frame, plant], mothers_room).
-loc_list([toilet, towel, soap], bathroom).
-loc_list([sofa, cat_bowl], living_room).
+loc_list([
+    object(apple, green, small, 2),
+    object(soda, black, small, 3),
+    object(water, trasparent, small, 3),
+    object(pizza, red, small, 5),
+    object(brocolli, green, small, 1),
+    object(fridge, black, big, 50)
+    ], kitchen).
+loc_list([
+    object(console, black, small, 6),
+    object(bed, blue, big, 40),
+    object(controller, gray, 2)
+    ], my_room).
+loc_list([
+    object(desk, gray, big, 25),
+    object(laptop, silver, big, 10),
+    object(lashlight, pink, small, 2)
+    ], office).
+loc_list([
+    object(mirror, green, big, 30),
+    object(frame, yellow, big, 15),
+    object(plant, green, small, 6)
+    ], mothers_room).
+loc_list([
+    object(toilet, white, big, 25),
+    object(towel, brown, small, 2),
+    object(soap, green, small, 1)
+    ], bathroom).
+loc_list([
+    object(sofa, brown, big, 30),
+    object(cat_bowl, silver, small, 3)
+    ], living_room).
 loc_list([], corridor).
+loc_list([], kid).
 
 member(H, [H|_]).
 member(X, [_|T]) :- member(X, T).
@@ -31,9 +60,11 @@ member(X, [_|T]) :- member(X, T).
 append([], X, X).
 append([H|T1], X, [H|T2]) :- append(T1, X, T2).
 
-location(X, Y) :- loc_list(List, Y), member(X, List).
+location(X, Y) :-
+    loc_list(List, Y), 
+    member(X, List).
 
-add_thing(NewThing, Containter, NewList) :- 
+add_thing1(NewThing, Containter, NewList) :- 
     loc_list(OldList, Containter),
     append([NewThing], OldList, NewList).
 
@@ -43,21 +74,30 @@ add_thing2(NewThing, Containter, NewList) :-
 
 add_thing3(NewThing, Containter, [NewThing|OldList]) :-
     loc_list(OldList, Containter).
+ 
+add_thing(Thing, Place) :- 
+    retract(loc_list(Objects, Place)),
+    assert(loc_list([Thing|Objects], Place)).
+add_thing(Thing, Place) :-
+    assert(loc_list([Thing|[]], Place)).
 
 put_thing(Thing, Place) :-
     retract(loc_list(List, Place)),
     assert(loc_list([Thing|List], Place)).
 
+remove(Object, [H|T], NewList) :-
+    Object == H, NewList = T.
+remove(Object, [H|T], NewList) :-
+    remove(Object, T, Aux), NewList = [H|Aux].
+
+remove_thing(Object, Place) :-
+    retract(loc_list(List, Place)), remove(Object, List, NewList),
+    assert(loc_list(NewList, Place)).
+
 break_out([]).
 break_out([H|T]) :- assertz(stuff(H)), break_out(T).
 
-respond([H|T], ) :-
-
-list_things_l() :- 
-
-take_l().
-
-
+% respond([H|T], )
 
 is_contained_in(T1, T2) :-
     location(object(T1, _, _, _), T2).
@@ -67,13 +107,14 @@ is_contained_in(T1, T2) :-
 
 edible(object(pizza, red, small, 4)).
 edible(object(apple, green, small, 2)).
-tastes_yucky(object(brocolli, _, _, _)).
+tastes_yucky(object(brocolli, green, small, 1)).
 
 drinkable(object(soda, _, _, _)).
+drinkable(object(water, _, _, _)).
 
-breakable(object(console, _, _, _)).
-breakable(object(frame, _, _, _)).
-breakable(object(cat_bowl, _, _, _)).
+breakable(object(console, black, small, 6)).
+breakable(object(frame, yellow, big, 15)).
+breakable(object(cat_bowl, silver, small, 3)).
 breakable(object(lamp, _, _, _)).
 
 door(my_room, corridor).
@@ -99,9 +140,6 @@ turned_off(object(lamp, _, _, _)).
 
 here(kitchen).
 
-% report :- location(object(X, _, _, _), kitchen), edible(object(X, _, _, _)), write(X), nl, fail.
-report :- location(object(X, _, _, _), kitchen), write(X), nl, fail.
-
 where_food(X, Y) :- location(X, Y), edible(X).
 where_food(X, Y) :- location(X, Y), tastes_yucky(X).
 
@@ -110,11 +148,9 @@ connect(X, Y) :- door(Y, X).
 
 % % % % % %  - Inventory -  % % % % % %
 
-inventory :- not(have(_)), write("You have nothing in your inventory").
+inventory :- loc_list([], kid), write("You have nothing in your inventory").
 inventory :- write("You have in inventory:"), nl, 
-    have(object(Thing, _, _, _)), tab(2),
-    write(Thing), nl, is_contained_in(In, Thing), 
-    tab(2), write(object(In, _, _, _)), nl.
+    list_things(kid).
 
 % inventory :- write("You have in inventory:"), nl, 
 %     have(Thing), tab(2),
@@ -124,34 +160,38 @@ inventory :- write("You have in inventory:"), nl,
 
 % % % % % %  - Eat -  % % % % % %
 
-eat(Thing) :- have(object(Thing, _, _, _)),
-    drinkable(object(Thing, _, _, _)),
+eat(Thing) :- location(object(Thing, X, Y, Z), kid),
+    drinkable(object(Thing, X, Y, Z)),
     write('You can\'t eat '), write(Thing), fail.
-eat(Thing) :- have(object(Thing, _, _, _)),
-    tastes_yucky(object(Thing, _, _, _)),
+eat(Thing) :- location(object(Thing, X, Y, Z), kid),
+    not(edible(object(Thing, X, Y, Z))),
+    write('You can\'t eat a '), write(Thing), fail.
+eat(Thing) :- location(object(Thing, X, Y, Z), kid),
+    tastes_yucky(object(Thing, X, Y, Z)),
     write('Gross >m<'), fail.
-eat(Thing) :- not(have(object(Thing, _, _, _))),
+eat(Thing) :- not(location(object(Thing, _, _, _), kid)),
     write('You don\'t have a '), write(Thing), fail.
-eat(Thing) :- have(object(Thing, _, _, _)),
-    edible(object(Thing, _, _, _)), 
-    retract(have(object(Thing, _, _, _))), write('yummy').
+eat(Thing) :- location(object(Thing, X, Y, Z), kid),
+    edible(object(Thing, X, Y, Z)), 
+    remove_thing(object(Thing, X, Y, Z), kid), write('yummy').
 
 % % % % % %  - Drink -  % % % % % %
 
-drink(Thing) :- not(have(object(Thing, _, _, _))),
+drink(Thing) :- not(location(object(Thing, _, _, _), kid)),
     write('You don\'t have a '), write(Thing), fail.
-drink(Thing) :- have(object(Thing, _, _, _)),
-    not(drinkable(object(Thing, _, _, _))),
+drink(Thing) :- location(object(Thing, X, Y, Z), kid),
+    not(drinkable(object(Thing, X, Y, Z))),
     write('You can\'t drink that!'), fail.
-drink(Thing) :- have(object(Thing, _, _, _)),
-    drinkable(object(Thing, _, _, _)),
-    retract(have(object(Thing, _, _, _))), write('Refreshing!'), fail.
+drink(Thing) :- location(object(Thing, X, Y, Z), kid),
+    drinkable(object(Thing, X, Y, Z)),
+    remove_thing(object(Thing, X, Y, Z), kid),
+    write('Refreshing!'), fail.
 
 
 % % % % % %  - List things -  % % % % % %
 
 list_things(Place) :- 
-    is_contained_in(Thing, Place),
+    location(object(Thing, _, _, _), Place),
     tab(2), write(Thing), nl, fail.
 list_things(_).
 
@@ -173,7 +213,7 @@ list_connections(_).
 
 % % % % % %  - Look -  % % % % % %
 
-look :- turned_off(object(lamp, _, _, _)), write('You can\'t see anything').
+% look :- turned_off(object(lamp, _, _, _)), write('You can\'t see anything').
 look :- here(Place), write(Place), nl, 
     write('You can see: '), nl, list_things_s(Place),
     write('You can go to: '), nl, list_connections(Place), fail.
@@ -199,37 +239,42 @@ can_take(Thing) :- here(Place),
     write('There is no '), write(Thing), write(' here.'),
     nl, fail.
 
-take_object(Thing) :- here(Place), retract(location(object(Thing, X, Y, Z), Place)), 
-    assert(have(object(Thing, X, Y, Z))), write('taken'), nl.
-take_object(_).
+take_object(Thing) :- here(Place), location(object(Thing, X, Y, Z), Place),
+    remove_thing(object(Thing, X, Y, Z), Place), 
+    add_thing(object(Thing, X, Y, Z), kid), write('taken'), nl.
+% take_object(_).
 
 take(X) :- can_take(X), take_object(X).
+
 take(Thing, In) :- here(Place), location(In, Place), 
     is_contained_in(Thing, In), retract(location(Thing, In)),
     assert(have(Thing)), write('taken'), nl.
 
-take_in(Thing) :- object(Thing, _, _, _), object(In, _, _, _), is_contained_in(Thing, In), 
+take_in(Thing) :- object(Thing, _, _, _), object(In, _, _, _),
+    is_contained_in(Thing, In), 
     retract(location(object(Thing, _, _, _), object(In, _, _, _))), 
     assert(have(object(Thing, _, _, _))), write('taken'), nl, fail.
 
 % % % % % %  - Put -  % % % % % 
 
-put(Thing) :- not(have(object(Thing, _, _, _))), 
+put(Thing) :- not(location(object(Thing, _, _, _), kid)),
     write('You don\'t have a '), write(Thing), nl, fail.
-put(Thing) :- have(object(Thing, X, Y, Z)), here(Place), 
-    assert(location(object(Thing, X, Y, Z), Place)), 
-    retract(have(object(Thing, X, Y, Z))).
+put(Thing) :- location(object(Thing, X, Y, Z), kid), here(Place), 
+    add_thing(object(Thing, X, Y, Z), Place),
+    remove_thing(object(Thing, X, Y, Z), kid).
 
-put(Thing, In) :- have(object(Thing, XT, YT, ZT)), here(Place), 
+put(Thing, In) :- location(object(Thing, XT, YT, ZT), kid), here(Place), 
     location(object(In, XI, YI, ZI), Place),
-    assert(location(object(Thing, XT, YT, ZT), object(In, XI, YI, ZI))), 
-    retract(have(object(Thing, XT, YT, ZT))).
+    add_thing(object(Thing, XT, YT, ZT), object(In, XI, YI, ZI)),
+    remove_thing(object(Thing, XT, YT, ZT), kid).
 
 % % % % % %  - Drop -  % % % % % 
 
-drop(X) :- have(object(X, _, _, _)), breakable(object(X, _, _, _)),
-    retract(have(object(X, _, _, _))), write("broken"), nl.
-drop(X) :- put(X), write("dropped"), nl.
+drop(Thing) :- location(object(Thing, X, Y, Z), kid),
+    breakable(object(Thing, X, Y, Z)),
+    remove_thing(object(Thing, X, Y, Z), kid),
+    write(Thing), write(" broken"), nl.
+drop(Thing) :- put(Thing), write("dropped"), nl.
 
 % % % % % %  - Turn on/off -  % % % % % 
 
@@ -247,6 +292,10 @@ turn_on(X) :- here(Y), location(X, Y), retract(turned_off(X)), assert(turned_on(
 turn_off(X) :- have(X), retract(turned_on(X)), assert(turned_off(X)). 
 turn_off(X) :- here(Y), location(X, Y), retract(turned_on(X)), assert(turned_off(X)).
 
-have(object(lamp, beige, small, 4)).
-
-
+% % % % % %  - Take -  % % % % % %
+% % % % % %  - Put -  % % % % % %
+% % % % % %  - Drop -  % % % % % %
+% % % % % %  - List Things -  % % % % % %
+% % % % % %  - Inventory -  % % % % % %
+% % % % % %  - Eat -  % % % % % %
+% % % % % %  - Drink -  % % % % % %
